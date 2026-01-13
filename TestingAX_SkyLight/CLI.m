@@ -32,7 +32,7 @@ generateWindowsCompletion:(NSArray<UserWindow *>*(^)(void))generateWindowsComple
         
         NSUInteger longestBundle = [Cli calcLongestBundle:windows];
         
-        NSString *fmt = [NSString stringWithFormat:@"%%2d | %%-%lu@ | %%@",
+        NSString *fmt = [NSString stringWithFormat:@"%%2d | %%d | %%lu | %%-%lu@ | %%@",
                          longestBundle];
         
         /// Display Windows
@@ -42,6 +42,8 @@ generateWindowsCompletion:(NSArray<UserWindow *>*(^)(void))generateWindowsComple
             
             NSLog(@"%@", [NSString stringWithFormat:fmt,
                           (int)i,
+                          win.pid,
+                          win.window.windowID,
                           bundle,
                           win.title ?: @"<no title>"]);
             
@@ -64,7 +66,7 @@ generateWindowsCompletion:(NSArray<UserWindow *>*(^)(void))generateWindowsComple
             NSLog(@"\e[1;32mExiting\e[0m");
             exit(1);
         }
-        if (input < '0' || input > '0' + (windows.count - 1)) {
+        if (input < '0' || input >= '0' + (windows.count)) {
             NSLog(@"\e[1;31mIndex Out of Range Try Again\e[0m");
             continue;
         }
@@ -85,7 +87,6 @@ generateWindowsCompletion:(NSArray<UserWindow *>*(^)(void))generateWindowsComple
             UInt32 wid = (UInt32)window.window.windowID;
 
             [bridge focusAppForWindowID:wid pid:window.pid];
-            NSLog(@"\e[1;32mApp Focused\e[0m");
         } else {
             NSLog(@"\e[1;31mSkipping\e[0m");
         }

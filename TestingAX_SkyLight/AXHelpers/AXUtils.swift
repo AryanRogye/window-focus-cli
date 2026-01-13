@@ -11,6 +11,27 @@
 public class AXUtils: NSObject {
     
     @objc
+    public static func __AXUIElementGetWindow(
+        _ element: AXUIElement,
+        _ outWindowID: UnsafeMutablePointer<CGWindowID>?
+    ) -> AXError {
+        return _AXUIElementGetWindow(element, outWindowID)
+    }
+    
+    @objc
+    public static func __AXUIElementCreateWithRemoteToken(
+        _ token: CFData,
+    ) -> Unmanaged<AXUIElement>? {
+        return _AXUIElementCreateWithRemoteToken(token)
+    }
+    
+//    @_silgen_name("_AXUIElementCreateWithRemoteToken")
+//    func _AXUIElementCreateWithRemoteToken(
+//        _ token: CFData
+//    ) -> Unmanaged<AXUIElement>?
+
+    
+    @objc
     public static func findMatchingAXWindow(
         pid: pid_t,
         targetCGSFrame: CGRect,
@@ -244,6 +265,7 @@ func _AXUIElementGetWindow(
 func _AXUIElementCreateWithRemoteToken(
     _ token: CFData
 ) -> Unmanaged<AXUIElement>?
+
 
 let kAXFullscreenAttribute = "AXFullScreen"
 let kAXWindowNumberAttribute = "AXWindowNumber" as CFString

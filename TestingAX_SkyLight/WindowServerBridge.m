@@ -7,47 +7,185 @@
 
 #import "WindowServerBridge.h"
 #import "SLPSTypes.h"
+#import <ApplicationServices/ApplicationServices.h>
+#import "TestingAX_SkyLight-Swift.h"
 #import <dlfcn.h>
 
 @interface WindowServerBridge()
-@property (nonatomic, nullable) void* handle;
+@property (nonatomic, nullable) void* skylightHandle;
+@property (nonatomic, nullable) void* hiServicesHandle;
 @property (nonatomic, nullable) SLPSSetFrontProcessWithOptionsFn setFrontProcessWithOptions;
 @property (nonatomic, nullable) SLPSPostEventRecordToFn postEventRecordTo;
+@property (nonatomic, nullable) GetProcessForPIDFn GetProcessForPID;
 @end
 
 @implementation WindowServerBridge
 
 - (void) focusAppForWindowID:(UInt32)windowID pid:(pid_t)pid {
+    ProcessSerialNumber psn = {0, 0};
+    OSStatus status = self.GetProcessForPID(pid, &psn);
+    if (status != noErr) {
+        NSLog(@"\e[1;31mCould Not Get Process For PID\e[0m");
+        /// Dont Return this could just be a weird bug in the moment
+        return;
+    }
     
+    /// 0x200 is - userGenerated
+    self.setFrontProcessWithOptions(&psn, windowID, 0x200);
+    NSLog(@"\e[1;32mSet Front Process With Options\e[0m");
+    
+    [self makeKeyWindowForWindowID:windowID psn:&psn];
+    NSLog(@"\e[1;32mMade Key Window For WindowID\e[0m");
+    //    self.makeKeyWindow(&psn, windowID)
+    
+    for (int attempt = 0; attempt < 3; attempt++) {
+        AXUIElementRef element = [self findAXUIElementForWindowID:windowID pid:pid];
+        if (element) {
+            NSLog(@"\e[1;32mAXElement Found, Rasing\e[0m");
+            AXUIElementPerformAction(element, kAXRaiseAction);
+            break;
+        } else {
+            NSLog(@"\e[1;31mAXElement Not Found On Try: %d\e[0m", attempt);
+        }
+    }
+}
+
+- (void) makeKeyWindowForWindowID:(UInt32)windowID psn:(ProcessSerialNumber *)psn {
+    UInt8 bytes[0xf8] = {0};
+    
+    bytes[0x04] = 0xf8;
+    bytes[0x08] = 0x01;
+    bytes[0x3a] = 0x10;
+    
+    bytes[0x3c] = (windowID & 0xFF);
+    bytes[0x3d] = ((windowID >> 8) & 0xFF);
+    bytes[0x3e] = ((windowID >> 16) & 0xFF);
+    bytes[0x3f] = ((windowID >> 24) & 0xFF);
+    
+    UInt64 psnLow = psn->lowLongOfPSN;
+    UInt64 psnHigh = psn->highLongOfPSN;
+    UInt64 psnValue = psnLow | (psnHigh << 32);
+    for (int i = 0; i < 8; i++) {
+        bytes[0x20 + i] = (UInt8)((psnValue >> (i * 8)) & 0xFF);
+    }
+    
+    self.postEventRecordTo(psn, bytes);
+}
+
+- (AXUIElementRef) findAXUIElementForWindowID:(UInt32)windowID pid:(pid_t)pid {
+    // Probe token structures until we find the right one
+    for (UInt32 tokenValue = 0; tokenValue < 65536; tokenValue++) {
+        UInt8 token[20] = {0};
+        
+        // Encode potential token structure
+        token[0] = 0x00;
+        token[1] = 0x62;
+        token[2] = 0x00;
+        token[3] = 0x00;
+        
+        // Window ID at offset 4
+        token[4] = (UInt8)(windowID & 0xFF);
+        token[5] = (UInt8)((windowID >> 8) & 0xFF);
+        token[6] = (UInt8)((windowID >> 16) & 0xFF);
+        token[7] = (UInt8)((windowID >> 24) & 0xFF);
+        
+        // Token value at offset 8 (little-endian 16-bit inside 32-bit loop)
+        token[8]  = (UInt8)(tokenValue & 0xFF);
+        token[9]  = (UInt8)((tokenValue >> 8) & 0xFF);
+        token[10] = 0x00;
+        token[11] = 0x00;
+        
+        // More header bytes
+        token[12] = 0x00;
+        token[13] = 0x00;
+        token[14] = 0x01;
+        token[15] = 0x00;
+        
+        CFDataRef tokenData = CFDataCreate(kCFAllocatorDefault, token, 20);
+        AXUIElementRef element = [AXUtils __AXUIElementCreateWithRemoteToken:tokenData];
+        CFRelease(tokenData);
+        if (element) {
+            UInt32 foundID = 0;
+            AXError axErr = [AXUtils __AXUIElementGetWindow:element :&foundID];
+            if (axErr == kAXErrorSuccess && foundID == windowID) {
+                return element;
+            }
+            CFRelease(element);
+        }
+    }
+    return NULL;
+}
+
+- (void)dealloc
+{
+    if (self.skylightHandle) {
+        dlclose(self.skylightHandle);
+    }
+    if (self.hiServicesHandle) {
+        dlclose(self.hiServicesHandle);
+    }
 }
 
 - (instancetype)init
 {
     self = [super init];
     if (self) {
-        self.handle = NULL;
+        self.skylightHandle = NULL;
+        self.hiServicesHandle = NULL;
         self.setFrontProcessWithOptions = NULL;
         self.postEventRecordTo = NULL;
+        self.GetProcessForPID = NULL;
+        
+        /// Get Handle And Assign Pointers to Functions
         [self openHandle];
+        [self setGetProcessForPID];
+        [self setSLPSPostEventRecordTo];
+        [self setSLPSSetFrontProcessWithOptions];
     }
     return self;
 }
 
 - (void) openHandle {
-    self.handle = dlopen(skylightPath, RTLD_LAZY);
-    if (!self.handle) {
-        NSLog(@"\e[1;31mHandle is Null\e[0m");
+    self.skylightHandle = dlopen(skylightPath, RTLD_LAZY | RTLD_GLOBAL);
+    if (!self.skylightHandle) {
+        NSLog(@"\e[1;31mSkyLight Handle is Null\e[0m");
         exit(1);
     }
-    NSLog(@"✅ Handle is Ready");
+    
+    self.hiServicesHandle = dlopen(hiServicesPath, RTLD_LAZY | RTLD_GLOBAL);
+    if (!self.hiServicesHandle) {
+        NSLog(@"\e[1;31mHIServices Handle is Null\e[0m");
+        exit(1);
+    }
+    
+    NSLog(@"✅ Handles are Ready");
+}
+
+- (void) setGetProcessForPID {
+    NSLog(@"Attempting GetProcessForPID");
+    void* sym = dlsym(self.hiServicesHandle, "GetProcessForPID");
+    if (!sym) {
+        NSLog(@"Attempting _GetProcessForPID");
+        sym = dlsym(self.hiServicesHandle, "_GetProcessForPID");
+        if (!sym) {
+            NSLog(@"\e[1;31mdlsym Cant be Found: %s\e[0m", dlerror());
+            exit(1);
+        } else {
+            NSLog(@"✅ _GetProcessForPID Success");
+        }
+    } else {
+        NSLog(@"✅ GetProcessForPID Success");
+    }
+    
+    self.GetProcessForPID = sym;
 }
 
 - (void) setSLPSSetFrontProcessWithOptions {
     NSLog(@"Attempting SLPSSetFrontProcessWithOptions");
-    void* sym = dlsym(self.handle, "SLPSSetFrontProcessWithOptions");
+    void* sym = dlsym(self.skylightHandle, "SLPSSetFrontProcessWithOptions");
     if (!sym) {
         NSLog(@"Attempting _SLPSSetFrontProcessWithOptions");
-        sym = dlsym(self.handle, "_SLPSSetFrontProcessWithOptions");
+        sym = dlsym(self.skylightHandle, "_SLPSSetFrontProcessWithOptions");
         if (!sym) {
             NSLog(@"\e[1;31mdlsym Cant be Found: %s\e[0m", dlerror());
             exit(1);
@@ -63,10 +201,10 @@
 
 - (void) setSLPSPostEventRecordTo {
     NSLog(@"Attempting SLPSPostEventRecordTo");
-    void *sym = dlsym(self.handle, "SLPSPostEventRecordTo");
+    void *sym = dlsym(self.skylightHandle, "SLPSPostEventRecordTo");
     if (!sym) {
         NSLog(@"Attempting _SLPSPostEventRecordTo");
-        sym = dlsym(self.handle, "_SLPSPostEventRecordTo");
+        sym = dlsym(self.skylightHandle, "_SLPSPostEventRecordTo");
         if (!sym) {
             NSLog(@"\e[1;31mdlsym Cant be Found: %s\e[0m", dlerror());
             exit(1);

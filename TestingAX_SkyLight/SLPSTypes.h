@@ -11,6 +11,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 
 static const char *skylightPath = "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight";
+static const char *hiServicesPath = "/System/Library/Frameworks/ApplicationServices.framework/Frameworks/HIServices.framework/HIServices";
 
 typedef CGError (*SLPSSetFrontProcessWithOptionsFn)(
                                                     ProcessSerialNumber *,
@@ -20,10 +21,10 @@ typedef CGError (*SLPSSetFrontProcessWithOptionsFn)(
 
 typedef CGError (*SLPSPostEventRecordToFn)(
                                            ProcessSerialNumber *,
-                                           UInt8
+                                           UInt8 *bytes
                                            );
 
-typedef OSStatus (*GetProcessForPID)(
+typedef OSStatus (*GetProcessForPIDFn)(
                                      pid_t,
                                      ProcessSerialNumber *
                                      );
