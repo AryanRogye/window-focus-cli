@@ -9,9 +9,10 @@
 #define WINDOW_SERVER_BRIDGE_H
 
 #import <Foundation/Foundation.h>
+#import "UserWindow.h"
 
 @interface WindowServerBridge: NSObject
-- (void) focusAppForWindowID:(UInt32)windowID pid:(pid_t)pid;
+- (void) focusAppForUserWindow:(UserWindow*)userWindow;
 @end
 
 #endif

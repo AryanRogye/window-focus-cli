@@ -25,37 +25,52 @@ public class AXUtils: NSObject {
         return _AXUIElementCreateWithRemoteToken(token)
     }
     
-//    @_silgen_name("_AXUIElementCreateWithRemoteToken")
-//    func _AXUIElementCreateWithRemoteToken(
-//        _ token: CFData
-//    ) -> Unmanaged<AXUIElement>?
-
-    
     @objc
     public static func findMatchingAXWindow(
         pid: pid_t,
-        targetCGSFrame: CGRect,
+        targetWindowID: CGWindowID
     ) -> AXUIElement? {
-        
         let appAX = AXUIElementCreateApplication(pid)
-        
         var windowsRef: AnyObject?
-        guard AXUIElementCopyAttributeValue(appAX, kAXWindowsAttribute as CFString, &windowsRef) == .success
-        else { return nil }
+        let err = AXUIElementCopyAttributeValue(appAX, kAXWindowsAttribute as CFString, &windowsRef)
+        guard err == .success, let windows = windowsRef as? [AXUIElement] else {
+            return nil
+        }
         
-        let axTargetRect = AXUtils().cgToAXRect(targetCGSFrame)
-        let tol: CGFloat = 12.0 // be generous; titles/shadows/scale can skew a bit
-        
-        for ax in AXUIElement.windowsByBruteForce(pid) {
-            if let axRect = getAXWindowRect(ax),
-               axRect.width >= 5, axRect.height >= 5,
-               AXUtils().rectRoughMatch(axRect, axTargetRect, tol: tol) {
+        for ax in windows {
+            var id: CGWindowID = 0
+            if _AXUIElementGetWindow(ax, &id) == .success, id == targetWindowID {
                 return ax
             }
         }
-        
         return nil
     }
+    
+//    @objc
+//    public static func findMatchingAXWindow(
+//        pid: pid_t,
+//        targetCGSFrame: CGRect,
+//    ) -> AXUIElement? {
+//        
+//        let appAX = AXUIElementCreateApplication(pid)
+//        
+//        var windowsRef: AnyObject?
+//        guard AXUIElementCopyAttributeValue(appAX, kAXWindowsAttribute as CFString, &windowsRef) == .success
+//        else { return nil }
+//        
+//        let axTargetRect = AXUtils().cgToAXRect(targetCGSFrame)
+//        let tol: CGFloat = 12.0 // be generous; titles/shadows/scale can skew a bit
+//        
+//        for ax in AXUIElement.windowsByBruteForce(pid) {
+//            if let axRect = getAXWindowRect(ax),
+//               axRect.width >= 5, axRect.height >= 5,
+//               AXUtils().rectRoughMatch(axRect, axTargetRect, tol: tol) {
+//                return ax
+//            }
+//        }
+//        
+//        return nil
+//    }
     
     private func cgToAXRect(_ cg: CGRect) -> CGRect {
         // Pick the screen that contains the CG rect

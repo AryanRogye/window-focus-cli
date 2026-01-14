@@ -84,9 +84,8 @@ generateWindowsCompletion:(NSArray<UserWindow *>*(^)(void))generateWindowsComple
         focus = tolower(focus);
         
         if (focus == 'y') {
-            UInt32 wid = (UInt32)window.window.windowID;
-
-            [bridge focusAppForWindowID:wid pid:window.pid];
+            [bridge focusAppForUserWindow:window];
+            
         } else {
             NSLog(@"\e[1;31mSkipping\e[0m");
         }

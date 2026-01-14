@@ -21,7 +21,11 @@
 
 @implementation WindowServerBridge
 
-- (void) focusAppForWindowID:(UInt32)windowID pid:(pid_t)pid {
+- (void) focusAppForUserWindow:(UserWindow*)userWindow {
+    
+    UInt32 windowID = (UInt32)userWindow.window.windowID;
+    pid_t pid = userWindow.pid;
+    
     ProcessSerialNumber psn = {0, 0};
     OSStatus status = self.GetProcessForPID(pid, &psn);
     if (status != noErr) {
@@ -38,14 +42,20 @@
     NSLog(@"\e[1;32mMade Key Window For WindowID\e[0m");
     //    self.makeKeyWindow(&psn, windowID)
     
-    for (int attempt = 0; attempt < 3; attempt++) {
-        AXUIElementRef element = [self findAXUIElementForWindowID:windowID pid:pid];
-        if (element) {
-            NSLog(@"\e[1;32mAXElement Found, Rasing\e[0m");
-            AXUIElementPerformAction(element, kAXRaiseAction);
-            break;
-        } else {
-            NSLog(@"\e[1;31mAXElement Not Found On Try: %d\e[0m", attempt);
+    if (userWindow.element != NULL) {
+        NSLog(@"\e[1;32mAXElement Exists, Attempting To Raise\e[0m");
+        AXUIElementPerformAction(userWindow.element, kAXRaiseAction);
+        NSLog(@"\e[1;32mRaising Done\e[0m");
+    } else {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            AXUIElementRef element = [self findAXUIElementForWindowID:windowID pid:pid];
+            if (element) {
+                NSLog(@"\e[1;32mAXElement Found, Rasing\e[0m");
+                AXUIElementPerformAction(element, kAXRaiseAction);
+                break;
+            } else {
+                NSLog(@"\e[1;31mAXElement Not Found On Try: %d\e[0m", attempt);
+            }
         }
     }
 }

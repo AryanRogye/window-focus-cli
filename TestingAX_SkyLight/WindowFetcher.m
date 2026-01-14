@@ -111,7 +111,10 @@ static void RequireAccessibility(void) {
                                  width.doubleValue,
                                  height.doubleValue);
         
-        AXUIElementRef element = [AXUtils findMatchingAXWindowWithPid:pid targetCGSFrame:rect];
+        AXUIElementRef element = [AXUtils findMatchingAXWindowWithPid:pid targetWindowID:window.windowID];
+        if (element) {
+            NSLog(@"\e[1;32mFound Element For Window: %u, %@\e[0m", window.windowID, app);
+        }
         
         UserWindow *uw = [UserWindow alloc];
         
