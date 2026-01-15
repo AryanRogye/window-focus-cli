@@ -11,6 +11,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
+#import "WindowServerBridge.h"
 #import "UserWindow.h"
 
 # pragma mark SCWindows
@@ -20,7 +21,7 @@ typedef NSArray<SCWindow *> * SCWindows;
 # pragma mark WindowFetcher
 @interface WindowFetcher : NSObject
 
-+ (NSArray<UserWindow *> * _Nullable) getWindows;
++ (NSArray<UserWindow *> * _Nullable)getWindowsWithBridge:(WindowServerBridge * _Nullable)bridge;
 
 @end
 

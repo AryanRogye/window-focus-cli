@@ -7,6 +7,7 @@
 
 #import "CLI.h"
 #import "WindowServerBridge.h"
+#import "WindowFetcher.h"
 
 @implementation Cli
 
@@ -21,10 +22,9 @@
     return longestBundle;
 }
 
-+ (void) cliLoopOn: (NSArray<UserWindow *> *)windows
-generateWindowsCompletion:(NSArray<UserWindow *>*(^)(void))generateWindowsCompletion {
-    
++ (void) cliLoop {
     WindowServerBridge *bridge = [[WindowServerBridge alloc] init];
+    NSArray<UserWindow *> *windows = [WindowFetcher getWindowsWithBridge:bridge];
     
     while(true) {
         
@@ -90,7 +90,7 @@ generateWindowsCompletion:(NSArray<UserWindow *>*(^)(void))generateWindowsComple
             NSLog(@"\e[1;31mSkipping\e[0m");
         }
         
-        windows = generateWindowsCompletion ? generateWindowsCompletion() : @[];
+        windows = [WindowFetcher getWindowsWithBridge:bridge];
     }
 }
 

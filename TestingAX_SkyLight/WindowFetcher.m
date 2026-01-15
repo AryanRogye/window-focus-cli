@@ -6,7 +6,7 @@
 //
 
 #import "WindowFetcher.h"
-#import "TestingAX_SkyLight-Swift.h"
+#import "WindowServerBridge.h"
 
 @implementation WindowFetcher
 
@@ -39,7 +39,7 @@ static void RequireAccessibility(void) {
     }
 }
 
-+ (NSArray<UserWindow *> * _Nullable)getWindows {
++ (NSArray<UserWindow *> * _Nullable)getWindowsWithBridge:(WindowServerBridge *)bridge {
     
     if (!CGPreflightScreenCaptureAccess()) {
         BOOL ok = CGRequestScreenCaptureAccess();
@@ -105,13 +105,8 @@ static void RequireAccessibility(void) {
         
         pid_t pid = (pid_t)pidNum.intValue;
 
-        CGRect rect = CGRectMake(
-                                 x.doubleValue,
-                                 y.doubleValue,
-                                 width.doubleValue,
-                                 height.doubleValue);
+        AXUIElementRef element = [bridge findMatchingAXWindowWithPid:pid targetWindowID:window.windowID];
         
-        AXUIElementRef element = [AXUtils findMatchingAXWindowWithPid:pid targetWindowID:window.windowID];
         if (element) {
             NSLog(@"\e[1;32mFound Element For Window: %u, %@\e[0m", window.windowID, app);
         }

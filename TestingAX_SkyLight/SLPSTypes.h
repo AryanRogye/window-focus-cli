@@ -24,9 +24,19 @@ typedef CGError (*SLPSPostEventRecordToFn)(
                                            UInt8 *bytes
                                            );
 
+/// TODO: Move below to a seperate File
 typedef OSStatus (*GetProcessForPIDFn)(
                                      pid_t,
                                      ProcessSerialNumber *
                                      );
+
+typedef AXError (*AXUIElementGetWindowFn)(
+                                          AXUIElementRef,
+                                          CGWindowID *
+                                          );
+
+typedef AXUIElementRef (*AXUIElementCreateWithRemoteTokenFn)(
+                                                             CFDataRef
+                                                             );
 
 #endif

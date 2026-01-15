@@ -12,6 +12,7 @@
 #import "UserWindow.h"
 
 @interface WindowServerBridge: NSObject
+- (AXUIElementRef) findMatchingAXWindowWithPid:(pid_t)pid targetWindowID:(CGWindowID)targetWindowID;
 - (void) focusAppForUserWindow:(UserWindow*)userWindow;
 @end
 

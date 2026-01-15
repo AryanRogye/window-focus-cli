@@ -8,7 +8,6 @@
 #import "WindowServerBridge.h"
 #import "SLPSTypes.h"
 #import <ApplicationServices/ApplicationServices.h>
-#import "TestingAX_SkyLight-Swift.h"
 #import <dlfcn.h>
 
 @interface WindowServerBridge()
@@ -17,12 +16,13 @@
 @property (nonatomic, nullable) SLPSSetFrontProcessWithOptionsFn setFrontProcessWithOptions;
 @property (nonatomic, nullable) SLPSPostEventRecordToFn postEventRecordTo;
 @property (nonatomic, nullable) GetProcessForPIDFn GetProcessForPID;
+@property (nonatomic, nullable) AXUIElementGetWindowFn AXUIElementGetWindow;
+@property (nonatomic, nullable) AXUIElementCreateWithRemoteTokenFn AXUIElementCreateWithRemoteToken;
 @end
 
 @implementation WindowServerBridge
 
 - (void) focusAppForUserWindow:(UserWindow*)userWindow {
-    
     UInt32 windowID = (UInt32)userWindow.window.windowID;
     pid_t pid = userWindow.pid;
     
@@ -52,14 +52,54 @@
             if (element) {
                 NSLog(@"\e[1;32mAXElement Found, Rasing\e[0m");
                 AXUIElementPerformAction(element, kAXRaiseAction);
-                break;
             } else {
                 NSLog(@"\e[1;31mAXElement Not Found On Try: %d\e[0m", attempt);
             }
+            
+            if (element) CFRelease(element);
+            if (element) break;
         }
     }
 }
 
+- (AXUIElementRef) findMatchingAXWindowWithPid:(pid_t)pid targetWindowID:(CGWindowID)targetWindowID {
+    
+    AXUIElementRef appAX = AXUIElementCreateApplication(pid);
+    if (!appAX) return NULL;
+    
+    CFTypeRef windowsValue = NULL;
+    AXError err = AXUIElementCopyAttributeValue(appAX, kAXWindowsAttribute, &windowsValue);
+    CFRelease(appAX);
+    
+    if (err != kAXErrorSuccess || !windowsValue) {
+        if (windowsValue) CFRelease(windowsValue);
+        return NULL;
+    }
+    
+    if (CFGetTypeID(windowsValue) != CFArrayGetTypeID()) {
+        CFRelease(windowsValue);
+        return NULL;
+    }
+    
+    CFArrayRef windows = (CFArrayRef)windowsValue;
+    
+    for (CFIndex i = 0; i < CFArrayGetCount(windows); i++) {
+        AXUIElementRef winAX = (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
+        if (!winAX) continue;
+        
+        CGWindowID wid = 0;
+        if (_AXUIElementGetWindow(winAX, &wid) == kAXErrorSuccess && wid == targetWindowID) {
+            CFRetain(winAX);          // IMPORTANT: returning it, so retain it
+            CFRelease(windowsValue);  // release the array container
+            return winAX;
+        }
+    }
+    
+    CFRelease(windowsValue);
+    return NULL;
+}
+
+// MARK: - Private API's
 - (void) makeKeyWindowForWindowID:(UInt32)windowID psn:(ProcessSerialNumber *)psn {
     UInt8 bytes[0xf8] = {0};
     
@@ -112,11 +152,12 @@
         token[15] = 0x00;
         
         CFDataRef tokenData = CFDataCreate(kCFAllocatorDefault, token, 20);
-        AXUIElementRef element = [AXUtils __AXUIElementCreateWithRemoteToken:tokenData];
+        
+        AXUIElementRef element = self.AXUIElementCreateWithRemoteToken(tokenData);
         CFRelease(tokenData);
         if (element) {
             UInt32 foundID = 0;
-            AXError axErr = [AXUtils __AXUIElementGetWindow:element :&foundID];
+            AXError axErr = self.AXUIElementGetWindow(element, &foundID);
             if (axErr == kAXErrorSuccess && foundID == windowID) {
                 return element;
             }
@@ -151,6 +192,8 @@
         [self setGetProcessForPID];
         [self setSLPSPostEventRecordTo];
         [self setSLPSSetFrontProcessWithOptions];
+        [self setAXUIElementGetWindow];
+        [self setAXUIElementCreateWithRemoteToken];
     }
     return self;
 }
@@ -169,6 +212,44 @@
     }
     
     NSLog(@"✅ Handles are Ready");
+}
+
+- (void) setAXUIElementCreateWithRemoteToken {
+    NSLog(@"Attempting AXUIElementCreateWithRemoteToken");
+    void* sym = dlsym(self.hiServicesHandle, "AXUIElementCreateWithRemoteToken");
+    if (!sym) {
+        NSLog(@"Attempting _AXUIElementGetWindow");
+        sym = dlsym(self.hiServicesHandle, "_AXUIElementCreateWithRemoteToken");
+        if (!sym) {
+            NSLog(@"\e[1;31mdlsym Cant be Found: %s\e[0m", dlerror());
+            exit(1);
+        } else {
+            NSLog(@"✅ _AXUIElementCreateWithRemoteToken Success");
+        }
+    } else {
+        NSLog(@"✅ AXUIElementCreateWithRemoteToken Success");
+    }
+    
+    self.AXUIElementCreateWithRemoteToken = sym;
+}
+
+- (void) setAXUIElementGetWindow {
+    NSLog(@"Attempting AXUIElementGetWindow");
+    void* sym = dlsym(self.hiServicesHandle, "AXUIElementGetWindow");
+    if (!sym) {
+        NSLog(@"Attempting _AXUIElementGetWindow");
+        sym = dlsym(self.hiServicesHandle, "_AXUIElementGetWindow");
+        if (!sym) {
+            NSLog(@"\e[1;31mdlsym Cant be Found: %s\e[0m", dlerror());
+            exit(1);
+        } else {
+            NSLog(@"✅ _AXUIElementGetWindow Success");
+        }
+    } else {
+        NSLog(@"✅ AXUIElementGetWindow Success");
+    }
+    
+    self.AXUIElementGetWindow = sym;
 }
 
 - (void) setGetProcessForPID {

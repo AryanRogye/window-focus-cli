@@ -13,13 +13,7 @@
 
 @interface Cli : NSObject
 
-+ (void) cliLoopOn: (NSArray<UserWindow *> *)windows
-        generateWindowsCompletion:(
-                                   NSArray<UserWindow *>*
-                                   (^)
-                                   (void)
-                                   )generateWindowsCompletion;
-
++ (void) cliLoop;
 
 @end
 
